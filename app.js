@@ -89,7 +89,9 @@ async function agendarAlmocoDeTodos() {
     let resultadoFila = await Promise.all(headers.map(header => entrarNaFila(header)))
 
     while (!resultadoFila.every((resultado => resultado.data.status == 'LIBERADO'))) {
-        console.log(resultadoFila)
+        if(resultadoFila.some((resultado => resultado.data.status == 'ESGOTADO'))) {
+            throw new Error('Vagas esgotadas!')
+        }
         resultadoFila = await Promise.all(headers.map(header => entrarNaFila(header)))
     }
 
@@ -187,6 +189,6 @@ app.get('/horario', (req, res) => {
 })
 
 
-app.listen(porta, () => console.log('> Server is up and running on port : ' + porta))
+app.listen(porta, () => console.log('Servidor executando na porta: ' + porta))
 
 
