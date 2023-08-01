@@ -89,6 +89,7 @@ async function agendarAlmocoDeTodos() {
     let resultadoFila = await Promise.all(headers.map(header => entrarNaFila(header)))
 
     while (!resultadoFila.every((resultado => resultado.data.status == 'LIBERADO'))) {
+        console.log(resultadoFila)
         resultadoFila = await Promise.all(headers.map(header => entrarNaFila(header)))
     }
 
