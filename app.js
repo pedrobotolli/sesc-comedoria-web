@@ -161,8 +161,8 @@ app.get('/agendamentos', (req, res) => {
 
 })
 
-app.post('/agendamentos/novo', async (req, res) => {
-    
+app.get('/agendamentos/novo', async (req, res) => {
+
     let instanceId = Math.floor(Math.random() * 1000000000000000)
     execucoesAgendadas.push({ id: instanceId, status: 'pendente' })
     res.status(201).json({ msg: 'Nova instancia de agendamento criada', id: instanceId })
