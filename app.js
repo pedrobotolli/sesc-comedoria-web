@@ -142,7 +142,7 @@ async function processoAgendamentoSesc(id) {
         execucao.status = 'esperando'
         //esperar até 17:30 UTC (14:30 de brasilia (GMT -3))
         agora = new Date()
-        milisegundosAte1430 = new Date(agora.getFullYear(), agora.getMonth(), agora.getDate(), 14, 30, 0, 0) - agora
+        let milisegundosAte1430 = new Date(agora.getFullYear(), agora.getMonth(), agora.getDate(), 14, 30, 0, 0) - agora
 
         //as 14:30 de brasilia executa a funcao agendarAlmocoDeTodos
         if (milisegundosAte1430 > 0) {
