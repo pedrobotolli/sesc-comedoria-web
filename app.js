@@ -87,10 +87,15 @@ async function agendarAlmoco(login, horarioId) {
 
 async function agendarAlmocoDeTodos() {
     let resultadoFila = await Promise.all(headers.map(header => entrarNaFila(header)))
-
+    let contadorErros = 0
     while (!resultadoFila.every((resultado => resultado.data.status == 'LIBERADO'))) {
         if(resultadoFila.some((resultado => resultado.data.status == 'ESGOTADO'))) {
-            throw new Error('Vagas esgotadas!')
+            contadorErros = contadorErros + 1
+            if (contadorErros <= 3) {
+                await new Promise(resolve => setTimeout(resolve, 500))
+            } else {
+                throw new Error('Vagas esgotadas!')
+            }            
         }
         resultadoFila = await Promise.all(headers.map(header => entrarNaFila(header)))
     }
