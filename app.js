@@ -128,7 +128,7 @@ async function processoAgendamentoSesc(id) {
     execucao.status = 'agendado'
     try {
         let agora = new Date()
-        let milisegundosAte1428 = new Date(agora.getFullYear(), agora.getMonth(), agora.getDate(), 14, 28, 0, 0) - agora
+        let milisegundosAte1428 = new Date(agora.getFullYear(), agora.getMonth(), agora.getDate(), 17, 28, 0, 0) - agora
         console.log(`milisegundos ate 14:28 = [${milisegundosAte1428}]`)
         if (milisegundosAte1428 > 0) {
             await new Promise(resolve => setTimeout(resolve, milisegundosAte1428))
@@ -143,7 +143,7 @@ async function processoAgendamentoSesc(id) {
         execucao.status = 'esperando'
         //esperar até 17:30 UTC (14:30 de brasilia (GMT -3))
         agora = new Date()
-        let milisegundosAte1430 = new Date(agora.getFullYear(), agora.getMonth(), agora.getDate(), 14, 30, 0, 0) - agora
+        let milisegundosAte1430 = new Date(agora.getFullYear(), agora.getMonth(), agora.getDate(), 17, 30, 0, 0) - agora
         console.log(agora)
         console.log(`milisegundos ate 14:30 = [${milisegundosAte1430}]`)
         //as 14:30 de brasilia executa a funcao agendarAlmocoDeTodos
