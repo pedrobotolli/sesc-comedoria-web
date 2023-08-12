@@ -10,7 +10,7 @@ router.get('/', (req, res) => {
 
 })
 
-router.get('/novo', async (req, res) => {
+router.post('/novo', async (req, res) => {
     let credenciais = req.query.cpf && req.query.senha ? {usuarios: [{cpf: req.query.cpf, senha: req.query.senha}]} : null
     let horarioEscolhido = req.query.horario || null
     let instanceId = Math.floor(Math.random() * 1000000000000000)

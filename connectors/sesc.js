@@ -1,6 +1,19 @@
 require('dotenv').config({ path: '../.env' })
 const axios = require('axios')
-const UO_SANTOS = 78 //Santos é 78
+
+const UO_24_DE_MAIO = 52
+const UO_BELENZINHO = 62
+const UO_CAMPINAS = 75
+const UO_CARMO = 64
+const UO_GUARULHOS = 73
+const UO_INTERLAGOS = 55
+const UO_ITAQUERA = 56
+const UO_PINHEIROS = 58
+const UO_POMPEIA = 63
+const UO_SANTO_ANDRE = 88
+const UO_SANTOS = 78
+const UO_VILA_MARIANA = 66
+
 let headers = []
 let execucoesAgendadas = []
 
@@ -59,7 +72,7 @@ async function entrarNaFila(header) {
                 method: 'post',
                 url: 'https://agendamentos-api.sescsp.org.br/api/agendamento-comedoria/fila',
                 data: {
-                    unidade: UO_SANTOS,
+                    unidade: UO_VILA_MARIANA,
                     credenciais: []
                 },
                 headers: header
@@ -72,10 +85,34 @@ async function entrarNaFila(header) {
     return fila
 }
 
+async function verificarStatusFila(header) {
+    let statusFila = null
+    let contador = 0
+
+    while (statusFila == null) {
+        contador = contador + 1
+        if (contador > 3) {
+            throw new Error('Numero maximo de tentativas para verificar o status da fila excedido')
+        }
+
+        try {
+            statusFila = await axios({
+                method: 'get',
+                url: `https://agendamentos-api.sescsp.org.br/api/agendamento-comedoria/fila?uo=${UO_VILA_MARIANA}`,
+                headers: header
+            })
+        } catch (erro) {
+            console.log(erro)
+        }
+    }
+
+    return statusFila
+}
+
 async function listarHorariosDisponiveis(credencial, header) {
     const horarios = await axios({
         method: 'get',
-        url: `https://agendamentos-api.sescsp.org.br/api/agendamento-comedoria/unidades-horarios?uo=${UO_SANTOS}&credenciais=${credencial}`,
+        url: `https://agendamentos-api.sescsp.org.br/api/agendamento-comedoria/unidades-horarios?uo=${UO_VILA_MARIANA}&credenciais=${credencial}`,
         headers: header
     })
     return horarios.data.horarios
@@ -106,7 +143,7 @@ async function agendarAlmocoDeTodos(horarioEscolhido, usuariosLogados) {
                 throw new Error('Vagas esgotadas!')
             }            
         }
-        resultadoFila = await Promise.all(headers.map(header => entrarNaFila(header)))
+        resultadoFila = await Promise.all(headers.map(header => verificarStatusFila(header)))
     }
 
     let horariosApi = await listarHorariosDisponiveis(usuariosLogados[0].credencial, headers[0])
@@ -156,7 +193,7 @@ async function processoAgendamentoSesc(id, credenciais, horarioEscolhido) {
     execucao.horario = horarioEscolhido || 'horario padrao'
     try {
         let agora = new Date()
-        let milisegundosAte1428 = new Date(agora.getFullYear(), agora.getMonth(), agora.getDate(), 17, 28, 0, 0) - agora
+        let milisegundosAte1428 = new Date(agora.getFullYear(), agora.getMonth(), agora.getDate(), 14, 28, 0, 0) - agora
         console.log(`milisegundos ate 14:28 = [${milisegundosAte1428}]`)
         if (milisegundosAte1428 > 0) {
             await new Promise(resolve => setTimeout(resolve, milisegundosAte1428))
@@ -171,7 +208,7 @@ async function processoAgendamentoSesc(id, credenciais, horarioEscolhido) {
         execucao.status = 'esperando'
         //esperar até 17:30 UTC (14:30 de brasilia (GMT -3))
         agora = new Date()
-        let milisegundosAte1430 = new Date(agora.getFullYear(), agora.getMonth(), agora.getDate(), 17, 30, 0, 0) - agora
+        let milisegundosAte1430 = new Date(agora.getFullYear(), agora.getMonth(), agora.getDate(), 14, 30, 0, 0) - agora
         console.log(agora)
         console.log(`milisegundos ate 14:30 = [${milisegundosAte1430}]`)
         //as 14:30 de brasilia executa a funcao agendarAlmocoDeTodos
