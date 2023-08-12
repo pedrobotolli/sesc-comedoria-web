@@ -72,7 +72,7 @@ async function entrarNaFila(header) {
                 method: 'post',
                 url: 'https://agendamentos-api.sescsp.org.br/api/agendamento-comedoria/fila',
                 data: {
-                    unidade: UO_VILA_MARIANA,
+                    unidade: UO_SANTOS,
                     credenciais: []
                 },
                 headers: header
@@ -98,7 +98,7 @@ async function verificarStatusFila(header) {
         try {
             statusFila = await axios({
                 method: 'get',
-                url: `https://agendamentos-api.sescsp.org.br/api/agendamento-comedoria/fila?uo=${UO_VILA_MARIANA}`,
+                url: `https://agendamentos-api.sescsp.org.br/api/agendamento-comedoria/fila?uo=${UO_SANTOS}`,
                 headers: header
             })
         } catch (erro) {
@@ -112,7 +112,7 @@ async function verificarStatusFila(header) {
 async function listarHorariosDisponiveis(credencial, header) {
     const horarios = await axios({
         method: 'get',
-        url: `https://agendamentos-api.sescsp.org.br/api/agendamento-comedoria/unidades-horarios?uo=${UO_VILA_MARIANA}&credenciais=${credencial}`,
+        url: `https://agendamentos-api.sescsp.org.br/api/agendamento-comedoria/unidades-horarios?uo=${UO_SANTOS}&credenciais=${credencial}`,
         headers: header
     })
     return horarios.data.horarios
@@ -193,7 +193,7 @@ async function processoAgendamentoSesc(id, credenciais, horarioEscolhido) {
     execucao.horario = horarioEscolhido || 'horario padrao'
     try {
         let agora = new Date()
-        let milisegundosAte1428 = new Date(agora.getFullYear(), agora.getMonth(), agora.getDate(), 14, 28, 0, 0) - agora
+        let milisegundosAte1428 = new Date(agora.getFullYear(), agora.getMonth(), agora.getDate(), 17, 28, 0, 0) - agora
         console.log(`milisegundos ate 14:28 = [${milisegundosAte1428}]`)
         if (milisegundosAte1428 > 0) {
             await new Promise(resolve => setTimeout(resolve, milisegundosAte1428))
@@ -208,7 +208,7 @@ async function processoAgendamentoSesc(id, credenciais, horarioEscolhido) {
         execucao.status = 'esperando'
         //esperar até 17:30 UTC (14:30 de brasilia (GMT -3))
         agora = new Date()
-        let milisegundosAte1430 = new Date(agora.getFullYear(), agora.getMonth(), agora.getDate(), 14, 30, 0, 0) - agora
+        let milisegundosAte1430 = new Date(agora.getFullYear(), agora.getMonth(), agora.getDate(), 17, 30, 0, 0) - agora
         console.log(agora)
         console.log(`milisegundos ate 14:30 = [${milisegundosAte1430}]`)
         //as 14:30 de brasilia executa a funcao agendarAlmocoDeTodos
