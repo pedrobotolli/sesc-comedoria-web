@@ -47,9 +47,45 @@ Rodando a aplicação:
   POST /agendamentos/novo
 ```
 
-| Query Params   | Tipo       | Descrição                                   |
+| Propriedade   | Tipo       | Descrição                                   |
 | :---------- | :--------- | :------------------------------------------ |
 | `cpf`      | `string` | **Obrigatório**. O CPF do usuário. |
 | `senha`    | `string` | **Obrigatório**. Senha do usuário. |
 | `horario`  | `string` | Horário de interesse para agendamento. Exemplo: 13:30|
 
+```
+  {
+    "cpf": "12345678910",
+    "senha": "sua senha",
+    "horario": "12:00"  
+  }
+```
+
+#### Cria vários agendamentos
+
+```http
+  POST /agendamentos/novos
+```
+| Propriedade   | Tipo       | Descrição                                   |
+| :---------- | :--------- | :------------------------------------------ |
+| `horario`  | `string` | Horário de interesse para agendamento. Exemplo: 13:30|
+| `usuarios`      | `array` | **Obrigatório**. Uma lista de agendamentos. |
+| `cpf`      | `string` | **Obrigatório**. O CPF do usuário. |
+| `senha`    | `string` | **Obrigatório**. Senha do usuário. |
+
+
+```
+  {
+    "horario": "13:00"
+    "usuarios": [
+      {
+        "cpf": "12345678910",
+        "senha": "senha1"          
+      },
+      {
+        "cpf": "10987654321",
+        "senha": "senha2"  
+      }
+    ]
+  }
+```

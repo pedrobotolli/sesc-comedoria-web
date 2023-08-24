@@ -14,6 +14,9 @@ const UO_SANTO_ANDRE = 88
 const UO_SANTOS = 78
 const UO_VILA_MARIANA = 66
 
+const FUSO_SERVIDOR = process.env.FUSO || -3 //por padrao será -3 pois executando local a máquina está configurada com o horario de brasilia
+
+
 let headers = []
 let execucoesAgendadas = []
 
@@ -193,7 +196,7 @@ async function processoAgendamentoSesc(id, credenciais, horarioEscolhido) {
     execucao.horario = horarioEscolhido || 'horario padrao'
     try {
         let agora = new Date()
-        let milisegundosAte1428 = new Date(agora.getFullYear(), agora.getMonth(), agora.getDate(), 17, 28, 0, 0) - agora
+        let milisegundosAte1428 = new Date(agora.getFullYear(), agora.getMonth(), agora.getDate(), 17 + FUSO_SERVIDOR, 28, 0, 0) - agora
         console.log(`milisegundos ate 14:28 = [${milisegundosAte1428}]`)
         if (milisegundosAte1428 > 0) {
             await new Promise(resolve => setTimeout(resolve, milisegundosAte1428))
@@ -208,7 +211,7 @@ async function processoAgendamentoSesc(id, credenciais, horarioEscolhido) {
         execucao.status = 'esperando'
         //esperar até 17:30 UTC (14:30 de brasilia (GMT -3))
         agora = new Date()
-        let milisegundosAte1430 = new Date(agora.getFullYear(), agora.getMonth(), agora.getDate(), 17, 30, 0, 0) - agora
+        let milisegundosAte1430 = new Date(agora.getFullYear(), agora.getMonth(), agora.getDate(), 17 + FUSO_SERVIDOR, 30, 0, 0) - agora
         console.log(agora)
         console.log(`milisegundos ate 14:30 = [${milisegundosAte1430}]`)
         //as 14:30 de brasilia executa a funcao agendarAlmocoDeTodos
