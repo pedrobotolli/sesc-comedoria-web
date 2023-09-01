@@ -69,7 +69,7 @@ async function entrarNaFila(header) {
         if (contador > 3) {
             throw new Error('Numero maximo de tentativas para entrar na fila excedido')
         }
-        
+
         try {
             fila = await axios({
                 method: 'post',
@@ -83,7 +83,7 @@ async function entrarNaFila(header) {
         } catch (erro) {
             console.log(erro)
         }
-    }  
+    }
 
     return fila
 }
@@ -108,7 +108,7 @@ async function verificarStatusFila(header) {
             console.log(erro)
         }
     }
-
+    console.log(statusFila)
     return statusFila
 }
 
@@ -122,15 +122,31 @@ async function listarHorariosDisponiveis(credencial, header) {
 }
 
 async function agendarAlmoco(login, horarioId) {
-    const agendar = await axios({
-        method: 'post',
-        url: 'https://agendamentos-api.sescsp.org.br/api/agendamento-comedoria/agendar',
-        data: {
-            credenciais: [login.credencial],
-            horarioId: horarioId
-        },
-        headers: login.header
-    })
+    let agendar = null
+    let contador = 0
+
+    while (agendar == null) {
+        contador = contador + 1
+        if (contador > 3) {
+            throw new Error('Numero maximo de tentativas para verificar o status do agendamento excedido')
+        }
+
+        try {
+            agendar = await axios({
+                method: 'post',
+                url: 'https://agendamentos-api.sescsp.org.br/api/agendamento-comedoria/agendar',
+                data: {
+                    credenciais: [login.credencial],
+                    horarioId: horarioId
+                },
+                headers: login.header
+            })
+        } catch (erro) {
+            console.log(erro)
+        }
+    }
+
+
     return agendar
 }
 
@@ -138,13 +154,13 @@ async function agendarAlmocoDeTodos(horarioEscolhido, usuariosLogados) {
     let resultadoFila = await Promise.all(headers.map(header => entrarNaFila(header)))
     let contadorErros = 0
     while (!resultadoFila.every((resultado => resultado.data.status == 'LIBERADO'))) {
-        if(resultadoFila.some((resultado => resultado.data.status == 'ESGOTADO'))) {
+        if (resultadoFila.some((resultado => resultado.data.status == 'ESGOTADO'))) {
             contadorErros = contadorErros + 1
             if (contadorErros <= 3) {
                 await new Promise(resolve => setTimeout(resolve, 500))
             } else {
                 throw new Error('Vagas esgotadas!')
-            }            
+            }
         }
         resultadoFila = await Promise.all(headers.map(header => verificarStatusFila(header)))
     }
@@ -230,5 +246,5 @@ async function processoAgendamentoSesc(id, credenciais, horarioEscolhido) {
 
 module.exports = {
     execucoesAgendadas,
-    processoAgendamentoSesc    
+    processoAgendamentoSesc
 }
