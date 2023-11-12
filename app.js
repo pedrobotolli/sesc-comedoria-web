@@ -1,8 +1,5 @@
-const result = require('dotenv').config()
+const result = require('dotenv').config({silent: true})
 
-if (result.error) {
-  throw result.error
-}
 const express = require('express')
 const cors = require('cors')
 const app = express()

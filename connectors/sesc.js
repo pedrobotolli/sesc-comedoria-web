@@ -1,5 +1,7 @@
 require('dotenv').config({ path: '../.env' })
 const axios = require('axios')
+const { PrismaClient } = require('@prisma/client')
+const prisma = new PrismaClient()
 
 const UO_24_DE_MAIO = 52
 const UO_BELENZINHO = 62
@@ -157,7 +159,7 @@ async function agendarAlmocoDeTodos(horarioEscolhido, usuariosLogados) {
         if (resultadoFila.some((resultado => resultado.data.status == 'ESGOTADO'))) {
             contadorErros = contadorErros + 1
             if (contadorErros <= 3) {
-                await new Promise(resolve => setTimeout(resolve, 500))
+                await new Promise(resolve => setTimeout(resolve, 200))
             } else {
                 throw new Error('Vagas esgotadas!')
             }
@@ -202,9 +204,21 @@ async function agendarAlmocoDeTodos(horarioEscolhido, usuariosLogados) {
     }
 }
 
-async function processoAgendamentoSesc(id, credenciais, horarioEscolhido) {
-    credenciais = credenciais || JSON.parse(process.env.CREDENCIAIS)
+async function processoAgendamentoSesc() {
     let usuariosLogados = []
+
+    let hoje = new Date();
+    let amanha = new Date();
+    amanha.setDate(amanha.getDate() + 1);
+
+    execucucoesAgendadas = prisma.agendamento.findMany({
+        select: {
+            agendarParaDia: {
+                gte: hoje,    // gte significa "maior ou igual a"
+                lte: amanha    // lt significa "menor que"
+            }
+        }
+    })
 
     let execucao = execucoesAgendadas.find(agendamento => agendamento.id == id)
     execucao.status = 'agendado'
@@ -227,7 +241,7 @@ async function processoAgendamentoSesc(id, credenciais, horarioEscolhido) {
         execucao.status = 'esperando'
         //esperar até 17:30 UTC (14:30 de brasilia (GMT -3))
         agora = new Date()
-        let milisegundosAte1430 = new Date(agora.getFullYear(), agora.getMonth(), agora.getDate(), 17 + FUSO_SERVIDOR, 30, 0, 0) - agora
+        let milisegundosAte1430 = new Date(agora.getFullYear(), agora.getMonth(), agora.getDate(), 17 + FUSO_SERVIDOR, 29, 0, 700) - agora
         console.log(agora)
         console.log(`milisegundos ate 14:30 = [${milisegundosAte1430}]`)
         //as 14:30 de brasilia executa a funcao agendarAlmocoDeTodos
