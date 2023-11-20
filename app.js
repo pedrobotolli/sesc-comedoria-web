@@ -1,9 +1,12 @@
 const result = require('dotenv').config({silent: true})
 
+const logger = require('./connectors/logger')
 const express = require('express')
 const cors = require('cors')
+const cron = require('node-cron')
 const app = express()
 const agendamentos = require('./routes/agendamentos')
+const sesc = require('./connectors/sesc')
 const porta = process.env.PORT || 3000
 
 app.use(express.json())
@@ -29,6 +32,17 @@ app.use((error, req, res, next) => {
 
 
 
-app.listen(porta, () => console.log('Servidor executando na porta: ' + porta))
+app.listen(porta, () => {
+  logger.info('Servidor executando na porta: ' + porta)
+  sesc.processoAgendamentoSesc()
+
+  cron.schedule('28 14 * * *', () => {
+    sesc.processoAgendamentoSesc1430()
+  })
+  
+  cron.schedule('*/3 * * * *', () => {
+     sesc.processoAgendamentoSesc()
+   })
+})
 
 

@@ -1,4 +1,5 @@
 require('dotenv').config({ path: '../.env' })
+const logger = require('./logger')
 const axios = require('axios')
 const { PrismaClient } = require('@prisma/client')
 const prisma = new PrismaClient()
@@ -18,9 +19,7 @@ const UO_VILA_MARIANA = 66
 
 const FUSO_SERVIDOR = process.env.FUSO || -3 //por padrao será -3 pois executando local a máquina está configurada com o horario de brasilia
 
-
-let headers = []
-let execucoesAgendadas = []
+let processando = false
 
 async function logar(usuario) {
     const login = await axios({
@@ -39,14 +38,12 @@ async function logar(usuario) {
             }
         }
     })
-
-    return login
+    return login.data
 }
 
-async function logarUsuarios(credenciais, usuariosLogados) {
-    for (usuario of credenciais.usuarios) {
-        let usuarioLogado = await logar(usuario)
-        usuariosLogados.push(usuarioLogado.data)
+async function logarUsuarios(usuarios) {
+    for (usuario of usuarios) {
+        usuario.login = await logar(usuario)
     }
 }
 
@@ -54,11 +51,10 @@ async function logarUsuarios(credenciais, usuariosLogados) {
 function criarHeader(usuariosLogados) {
     for (usuarioLogado of usuariosLogados) {
         let header = {
-            Authorization: `Bearer ${usuarioLogado.auth_token}`,
+            Authorization: `Bearer ${usuarioLogado.login.auth_token}`,
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/112.0.0.0 Safari/537.36'
         }
-        headers.push(header)
-        usuarioLogado["header"] = header
+        usuarioLogado.header = header
     }
 }
 
@@ -83,7 +79,7 @@ async function entrarNaFila(header) {
                 headers: header
             })
         } catch (erro) {
-            console.log(erro)
+            logger.error(erro.message)
         }
     }
 
@@ -107,10 +103,10 @@ async function verificarStatusFila(header) {
                 headers: header
             })
         } catch (erro) {
-            console.log(erro)
+            logger.error(erro.message)
         }
     }
-    console.log(statusFila)
+    logger.info(JSON.stringify(statusFila.data));
     return statusFila
 }
 
@@ -123,11 +119,12 @@ async function listarHorariosDisponiveis(credencial, header) {
     return horarios.data.horarios
 }
 
-async function agendarAlmoco(login, horarioId) {
+async function agendarAlmoco(usuario, horarioId) {
     let agendar = null
     let contador = 0
 
     while (agendar == null) {
+
         contador = contador + 1
         if (contador > 3) {
             throw new Error('Numero maximo de tentativas para verificar o status do agendamento excedido')
@@ -138,13 +135,14 @@ async function agendarAlmoco(login, horarioId) {
                 method: 'post',
                 url: 'https://agendamentos-api.sescsp.org.br/api/agendamento-comedoria/agendar',
                 data: {
-                    credenciais: [login.credencial],
+                    credenciais: [usuario.login.credencial],
                     horarioId: horarioId
                 },
-                headers: login.header
+                headers: usuario.header
             })
         } catch (erro) {
-            console.log(erro)
+            logger.error(JSON.stringify(erro.response.data))
+            logger.error(erro.message)
         }
     }
 
@@ -152,113 +150,194 @@ async function agendarAlmoco(login, horarioId) {
     return agendar
 }
 
-async function agendarAlmocoDeTodos(horarioEscolhido, usuariosLogados) {
-    let resultadoFila = await Promise.all(headers.map(header => entrarNaFila(header)))
+async function agendarAlmocoDeTodos(usuariosLogados) {
+    let resultadoFila = await Promise.all(usuariosLogados.map(usuarioLogado => entrarNaFila(usuarioLogado.header)))
     let contadorErros = 0
     while (!resultadoFila.every((resultado => resultado.data.status == 'LIBERADO'))) {
         if (resultadoFila.some((resultado => resultado.data.status == 'ESGOTADO'))) {
             contadorErros = contadorErros + 1
             if (contadorErros <= 3) {
-                await new Promise(resolve => setTimeout(resolve, 200))
+                await new Promise(resolve => setTimeout(resolve, 100))
             } else {
                 throw new Error('Vagas esgotadas!')
             }
         }
-        resultadoFila = await Promise.all(headers.map(header => verificarStatusFila(header)))
+        resultadoFila = await Promise.all(usuariosLogados.map(usuarioLogado => verificarStatusFila(usuarioLogado.header)))
     }
 
-    let horariosApi = await listarHorariosDisponiveis(usuariosLogados[0].credencial, headers[0])
+    let horariosApi = await listarHorariosDisponiveis(usuariosLogados[0].login.credencial, usuariosLogados[0].header)
     let listaHorarios = []
 
     if (horariosApi.hasOwnProperty('manha')) {
         for (horario of horariosApi.manha) {
-            listaHorarios.push(horario)
+            if (horario.disponivel == true) {
+                listaHorarios.push(horario)
+            }
         }
     }
     if (horariosApi.hasOwnProperty('tarde')) {
         for (horario of horariosApi.tarde) {
-            listaHorarios.push(horario)
+            if (horario.disponivel == true) {
+                listaHorarios.push(horario)
+            }
         }
     }
 
     let resultadoAgendamento = null
-    const itemHorarioEscolhido = listaHorarios.find(horario => horario.horarioInicio == horarioEscolhido)
-    if (itemHorarioEscolhido) {
-        resultadoAgendamento = await Promise.all(usuariosLogados.map(usuarioLogado => agendarAlmoco(usuarioLogado, itemHorarioEscolhido.id)))
-        if (resultadoAgendamento.every((resultado => resultado.status == 200))) {
-            console.log(`horario agendado com sucesso!`)
-            return
+    let usuariosAgendadosParaRemover = []
+    for (usuarioLogado of usuariosLogados) {
+        const itemHorarioEscolhido = listaHorarios.find(horario => horario.horarioInicio == usuarioLogado.agendarParaHorario)
+        if (itemHorarioEscolhido) {
+            resultadoAgendamento = await agendarAlmoco(usuarioLogado, itemHorarioEscolhido.id)
+            if (resultadoAgendamento.status = 200) {
+                logger.info(`horario do usuario ${usarioLogado.cpf} agendado com sucesso!`)
+                usuariosAgendadosParaRemover.push(usuarioLogado)
+            }
         }
     }
 
-    listaHorarios.reverse()
+    for (usuarioParaRemover of usuariosAgendadosParaRemover) {
+        let indiceParaRemover = usuariosLogados.findIndex(usuarioLogado => usuarioLogado == usuarioParaRemover)
+        usuariosLogados = usuarioLogados.splice(indiceParaRemover, 1)
+    }
+
+    listaHorarios = listaHorarios.reverse()
 
     for (horario of listaHorarios) {
+        try {
+            resultadoAgendamento = await Promise.all(usuariosLogados.map(usuarioLogado => agendarAlmoco(usuarioLogado, horario.id)))
 
-        resultadoAgendamento = await Promise.all(usuariosLogados.map(usuarioLogado => agendarAlmoco(usuarioLogado, horario.id)))
-
-        if (resultadoAgendamento.every((resultado => resultado.status == 200))) {
-            console.log(`horario agendado com sucesso!`)
-            break
+            if (resultadoAgendamento.every((resultado => resultado.status == 200))) {
+                logger.info(`horario agendado com sucesso!`)
+                break
+            }
+        }
+        catch (erro) {
+            logger.error(erro.message)
         }
     }
 }
 
-async function processoAgendamentoSesc() {
-    let usuariosLogados = []
+async function processoAgendamentoSesc1430() {
+    if (processando)
+        return
 
-    let hoje = new Date();
-    let amanha = new Date();
-    amanha.setDate(amanha.getDate() + 1);
+    let agora = new Date();
+    let inicio = null
+    let fim = null
 
-    execucucoesAgendadas = prisma.agendamento.findMany({
-        select: {
-            agendarParaDia: {
-                gte: hoje,    // gte significa "maior ou igual a"
-                lte: amanha    // lt significa "menor que"
-            }
+
+    logger.info('processo de agendamento das 14:30 (liberação de horários amanhã)')
+    inicio = new Date(agora.getFullYear(), agora.getMonth(), agora.getDate() + 1, 0 + FUSO_SERVIDOR, 0, 0);
+    logger.info(inicio.toISOString())
+    fim = new Date(agora.getFullYear(), agora.getMonth(), agora.getDate() + 1, 23 + FUSO_SERVIDOR, 59, 0);
+    logger.info(fim.toISOString())
+
+    let statusAguardando = await prisma.status.findUnique({
+        where: {
+            status: 'Aguardando'
         }
     })
 
-    let execucao = execucoesAgendadas.find(agendamento => agendamento.id == id)
-    execucao.status = 'agendado'
-    execucao.cpf = credenciais.usuarios[0].cpf || 'usuario padrao'
-    execucao.horario = horarioEscolhido || 'horario padrao'
-    try {
-        let agora = new Date()
-        let milisegundosAte1428 = new Date(agora.getFullYear(), agora.getMonth(), agora.getDate(), 17 + FUSO_SERVIDOR, 28, 0, 0) - agora
-        console.log(`milisegundos ate 14:28 = [${milisegundosAte1428}]`)
-        if (milisegundosAte1428 > 0) {
-            await new Promise(resolve => setTimeout(resolve, milisegundosAte1428))
+    let execucoesAgendadas = await prisma.agendamento.findMany({
+        where: {
+            agendarParaDia: {
+                gte: inicio,    // gte significa "maior ou igual a"
+                lte: fim    // lt significa "menor que"
+            },
+            status: statusAguardando
         }
-        execucao.status = 'logando'
+    })
+
+    if (execucoesAgendadas.length == 0)
+        return
+
+    try {
         //faz o login para todos os usuarios configurados no .env
-        await logarUsuarios(credenciais, usuariosLogados)
+        await logarUsuarios(execucoesAgendadas)
 
         //cria uma lista de headers com a autenticação para cada usuario
-        criarHeader(usuariosLogados)
+        criarHeader(execucoesAgendadas)
 
-        execucao.status = 'esperando'
         //esperar até 17:30 UTC (14:30 de brasilia (GMT -3))
         agora = new Date()
-        let milisegundosAte1430 = new Date(agora.getFullYear(), agora.getMonth(), agora.getDate(), 17 + FUSO_SERVIDOR, 29, 0, 700) - agora
-        console.log(agora)
-        console.log(`milisegundos ate 14:30 = [${milisegundosAte1430}]`)
+        let milisegundosAte1430 = new Date(agora.getFullYear(), agora.getMonth(), agora.getDate(), 17 + FUSO_SERVIDOR, 29, 0, 800) - agora
+        logger.info(`milisegundos ate 14:30 = [${milisegundosAte1430}]`)
         //as 14:30 de brasilia executa a funcao agendarAlmocoDeTodos
         if (milisegundosAte1430 > 0) {
             await new Promise(resolve => setTimeout(resolve, milisegundosAte1430))
         }
-        await agendarAlmocoDeTodos(horarioEscolhido, usuariosLogados)
-        execucao.status = 'sucesso'
+        await agendarAlmocoDeTodos(execucoesAgendadas)
     }
     catch (erro) {
-        execucao.status = 'erro'
-        console.log(erro)
+        logger.error(erro.message)
     }
 
 }
 
+async function processoAgendamentoSesc() {
+    if (processando)
+        return
+
+    let agora = new Date();
+    let inicio = null
+    let fim = null
+    if (agora.getHours() == 14 && agora.getMinutes < 30) {
+        logger.info('Horário atual entre 14 e 14:30, agora só serão feitas tentativas de agendamento para amanhã, iniciamos as tentativas as 14:30')
+        return
+    }
+    if (agora.getHours() < 14) {
+        logger.info('como ainda não deu 14 horas vamos procurar agendamentos pendentes para hoje')
+        inicio = new Date(agora.getFullYear(), agora.getMonth(), agora.getDate(), 0 + FUSO_SERVIDOR, 0, 0);
+        logger.info(inicio.toISOString())
+        fim = new Date(agora.getFullYear(), agora.getMonth(), agora.getDate(), 23 + FUSO_SERVIDOR, 59, 0);
+        logger.info(fim.toISOString())
+    } else {
+        logger.info('como já passou das 14 horas vamos procurar agendamentos pendentes para amanhã')
+        inicio = new Date(agora.getFullYear(), agora.getMonth(), agora.getDate() + 1, 0 + FUSO_SERVIDOR, 0, 0);
+        logger.info(inicio.toISOString())
+        fim = new Date(agora.getFullYear(), agora.getMonth(), agora.getDate() + 1, 23 + FUSO_SERVIDOR, 59, 0);
+        logger.info(fim.toISOString())
+    }
+
+    let statusAguardando = await prisma.status.findUnique({
+        where: {
+            status: 'Aguardando'
+        }
+    })
+
+    let execucoesAgendadas = await prisma.agendamento.findMany({
+        where: {
+            agendarParaDia: {
+                gte: inicio,    // gte significa "maior ou igual a"
+                lte: fim    // lt significa "menor que"
+            },
+            status: statusAguardando
+        }
+    })
+    if (execucoesAgendadas.length == 0) {
+        logger.info('nenhuma tarefa de agendamento pendente encontrada')
+        return
+    }
+
+
+    try {
+        //faz o login para todos os usuarios configurados no .env
+        await logarUsuarios(execucoesAgendadas)
+
+        //cria uma lista de headers com a autenticação para cada usuario
+        criarHeader(execucoesAgendadas)
+
+        await agendarAlmocoDeTodos(execucoesAgendadas)
+    }
+    catch (erro) {
+        logger.error(erro.message)
+    }
+
+}
+
+
 module.exports = {
-    execucoesAgendadas,
-    processoAgendamentoSesc
+    processoAgendamentoSesc,
+    processoAgendamentoSesc1430
 }
