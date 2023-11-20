@@ -44,9 +44,9 @@ router.post('/novos', async (req, res, next) => {
         let idAgendamentos = []
 
         for (usuario of req.body.usuarios) {
-            let horarioEscolhido = req.body.horario || null
+            let horarioEscolhido = usuario.horario || null
             let status = await prisma.status.findUnique({ where: { status: "Aguardando" } })
-            let textoDataAgendamento = req.body.dataAgendamento || null
+            let textoDataAgendamento = usuario.dataAgendamento || null
             let agendarParaDia = null
             try {
                 if (textoDataAgendamento) {
@@ -56,8 +56,14 @@ router.post('/novos', async (req, res, next) => {
             } catch (e) {
                 agendarParaDia = new Date()
             }
-            let agendamento = await prisma.agendamento.create({ data: { cpf: usuario.cpf, senha: usuario.senha, agendarParaDia, agendarParaHorario: horarioEscolhido, statusId: status.id } })
-            idAgendamentos.push(agendamento.id)
+            try {
+                let agendamento = await prisma.agendamento.create({ data: { cpf: usuario.cpf, senha: usuario.senha, agendarParaDia, agendarParaHorario: horarioEscolhido, statusId: status.id } })
+                idAgendamentos.push(agendamento.id)
+            }
+            catch (e) {
+                console.log(e)
+            }
+
         }
         res.status(201).json({ msg: 'Nova instancias de agendamento criadas', ids: idAgendamentos })
 
@@ -69,7 +75,7 @@ router.post('/novos', async (req, res, next) => {
 router.get('/status/:id', async (req, res, next) => {
 
     try {
-        let execucao = await prisma.agendamentos.findUnique({where: {id: req.params.id}})
+        let execucao = await prisma.agendamentos.findUnique({ where: { id: req.params.id } })
         res.status(200).json(execucao)
     } catch (error) {
         next(error)

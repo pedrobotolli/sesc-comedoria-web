@@ -20,6 +20,19 @@ const UO_VILA_MARIANA = 66
 const FUSO_SERVIDOR = process.env.FUSO || -3 //por padrao será -3 pois executando local a máquina está configurada com o horario de brasilia
 
 let processando = false
+let listaStatus = null
+let statusAguardando = null
+let statusAgendado = null
+let statusTentando = null
+let statusVencido = null
+
+async function carregarStatus() {
+    listaStatus = await prisma.status.findMany()
+    statusAguardando = listaStatus.find(itemStatus => itemStatus.status == 'Aguardando')
+    statusAgendado = listaStatus.find(itemStatus => itemStatus.status == 'Agendado')
+    statusTentando = listaStatus.find(itemStatus => itemStatus.status == 'Tentando')
+    statusVencido = listaStatus.find(itemStatus => itemStatus.status == 'Vencido')
+}
 
 async function logar(usuario) {
     const login = await axios({
@@ -140,6 +153,19 @@ async function agendarAlmoco(usuario, horarioId) {
                 },
                 headers: usuario.header
             })
+
+            logger.info(`horario agendado com sucesso!`)
+
+            prisma.agendamento.update({
+                where: {
+                    id: usuario.id
+                },
+                data: { 
+                    statusId: statusAgendado.id
+                }
+            })
+
+
         } catch (erro) {
             logger.error(JSON.stringify(erro.response.data))
             logger.error(erro.message)
@@ -208,7 +234,6 @@ async function agendarAlmocoDeTodos(usuariosLogados) {
             resultadoAgendamento = await Promise.all(usuariosLogados.map(usuarioLogado => agendarAlmoco(usuarioLogado, horario.id)))
 
             if (resultadoAgendamento.every((resultado => resultado.status == 200))) {
-                logger.info(`horario agendado com sucesso!`)
                 break
             }
         }
@@ -222,6 +247,8 @@ async function processoAgendamentoSesc1430() {
     if (processando)
         return
 
+    await carregarStatus()
+
     let agora = new Date();
     let inicio = null
     let fim = null
@@ -233,11 +260,6 @@ async function processoAgendamentoSesc1430() {
     fim = new Date(agora.getFullYear(), agora.getMonth(), agora.getDate() + 1, 23 + FUSO_SERVIDOR, 59, 0);
     logger.info(fim.toISOString())
 
-    let statusAguardando = await prisma.status.findUnique({
-        where: {
-            status: 'Aguardando'
-        }
-    })
 
     let execucoesAgendadas = await prisma.agendamento.findMany({
         where: {
@@ -245,12 +267,28 @@ async function processoAgendamentoSesc1430() {
                 gte: inicio,    // gte significa "maior ou igual a"
                 lte: fim    // lt significa "menor que"
             },
-            status: statusAguardando
+            statusId: statusAguardando.id
         }
     })
 
     if (execucoesAgendadas.length == 0)
         return
+
+    await prisma.agendamento.updateMany({
+        where: {
+            agendarParaDia: {
+                gte: inicio,    // gte significa "maior ou igual a"
+                lte: fim    // lt significa "menor que"
+            },
+            OR: [
+                { status: statusAguardando },
+                { status: statusTentando }
+            ]
+        },
+        data: {
+            statusId: statusTentando.id
+        }
+    })
 
     try {
         //faz o login para todos os usuarios configurados no .env
@@ -279,11 +317,14 @@ async function processoAgendamentoSesc() {
     if (processando)
         return
 
+    await carregarStatus()
+
     let agora = new Date();
     let inicio = null
     let fim = null
-    if (agora.getHours() == 14 && agora.getMinutes < 30) {
-        logger.info('Horário atual entre 14 e 14:30, agora só serão feitas tentativas de agendamento para amanhã, iniciamos as tentativas as 14:30')
+
+    if (agora.getHours() == 14 && agora.getMinutes() < 30) {
+        logger.info('Horário atual entre 14 e 14:30, agora só serão feitas tentativas de agendamento para amanhã, iniciaremos as tentativas as 14:30')
         return
     }
     if (agora.getHours() < 14) {
@@ -300,19 +341,17 @@ async function processoAgendamentoSesc() {
         logger.info(fim.toISOString())
     }
 
-    let statusAguardando = await prisma.status.findUnique({
-        where: {
-            status: 'Aguardando'
-        }
-    })
-
     let execucoesAgendadas = await prisma.agendamento.findMany({
         where: {
             agendarParaDia: {
                 gte: inicio,    // gte significa "maior ou igual a"
                 lte: fim    // lt significa "menor que"
             },
-            status: statusAguardando
+            OR: [
+                { status: statusAguardando },
+                { status: statusTentando }
+            ]
+
         }
     })
     if (execucoesAgendadas.length == 0) {
@@ -320,6 +359,21 @@ async function processoAgendamentoSesc() {
         return
     }
 
+    await prisma.agendamento.updateMany({
+        where: {
+            agendarParaDia: {
+                gte: inicio,    // gte significa "maior ou igual a"
+                lte: fim    // lt significa "menor que"
+            },
+            OR: [
+                { status: statusAguardando },
+                { status: statusTentando }
+            ]
+        },
+        data: {
+            statusId: statusTentando.id
+        }
+    })
 
     try {
         //faz o login para todos os usuarios configurados no .env

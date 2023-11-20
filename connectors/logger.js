@@ -5,7 +5,7 @@ const logConfiguration = {
     'transports': [
         new (winston.transports.Console)(),
         new winston.transports.File({
-            filename: path.resolve(__dirname, "../logs/example.log")
+            filename: path.resolve(__dirname, "../logs/logs-sesc.log")
         })
     ],
     format: winston.format.combine(
